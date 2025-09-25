@@ -24,14 +24,7 @@ class profile_field_hierarchicalmenu extends profile_field_base {
             }
         }
 
-        // Parse saved selection (stored as JSON string of IDs).
-        $this->current = ['level0' => '', 'level1' => '', 'level2' => ''];
-        if (!empty($this->data)) {
-            $sel = json_decode($this->data, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($sel)) {
-                $this->current = array_merge($this->current, $sel);
-            }
-        }
+        $this->current = $this->normalise_selection($this->data);
     }
 
     /**
@@ -44,6 +37,14 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         $mform->addElement('select', $this->inputname.'[level0]', format_string($this->field->name).' – Level 1', []);
         $mform->addElement('select', $this->inputname.'[level1]', format_string($this->field->name).' – Level 2', []);
         $mform->addElement('select', $this->inputname.'[level2]', format_string($this->field->name).' – Level 3', []);
+
+        $mform->setType($this->inputname.'[level0]', PARAM_RAW);
+        $mform->setType($this->inputname.'[level1]', PARAM_RAW);
+        $mform->setType($this->inputname.'[level2]', PARAM_RAW);
+
+        // Hidden element stores the JSON payload that Moodle will persist.
+        $mform->addElement('hidden', $this->inputname, '');
+        $mform->setType($this->inputname, PARAM_TEXT);
 
         // Make them required if field is required (only level0 strictly required).
         if (!empty($this->field->required)) {
@@ -59,6 +60,7 @@ class profile_field_hierarchicalmenu extends profile_field_base {
                     'root'      => $this->tree['root'],
                     'fieldname' => $this->inputname,
                     'current'   => $this->current,
+                    'hidden'    => $this->inputname,
                     'labels'    => ['l0' => get_string('choose').'...', 'l1' => get_string('choose').'...', 'l2' => get_string('choose').'...']
                 ]
             ]
@@ -69,15 +71,8 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      * Defaults for the selects.
      */
     public function edit_field_set_default($mform) {
-        // If you want defaults, put them into $this->field->defaultdata as JSON of IDs.
-        if (!empty($this->field->defaultdata)) {
-            $def = json_decode($this->field->defaultdata, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($def)) {
-                $mform->setDefault($this->inputname, $def);
-            }
-        } else if (!empty($this->current)) {
-            $mform->setDefault($this->inputname, $this->current);
-        }
+        $default = $this->normalise_selection($this->field->defaultdata ?: $this->current);
+        $mform->setDefault($this->inputname, $this->encode_selection($default));
     }
 
     /**
@@ -85,24 +80,15 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      * $data arrives as array: ['level0'=>id, 'level1'=>id, 'level2'=>id]
      */
     public function edit_save_data_preprocess($data, $datarecord) {
-        if (is_array($data)) {
-            // Normalize to strings; store only IDs
-            $out = [
-                'level0' => isset($data['level0']) ? (string)$data['level0'] : '',
-                'level1' => isset($data['level1']) ? (string)$data['level1'] : '',
-                'level2' => isset($data['level2']) ? (string)$data['level2'] : ''
-            ];
-            return json_encode($out);
-        }
-        return null;
+        $selection = $this->normalise_selection($data);
+        return $this->encode_selection($selection);
     }
 
     /**
      * Load saved selection back into the form (array of ids).
      */
     public function edit_load_user_data($user) {
-        // When loading, supply the array of IDs back.
-        $user->{$this->inputname} = $this->current;
+        $user->{$this->inputname} = $this->encode_selection($this->current);
     }
 
     /**
@@ -111,5 +97,59 @@ class profile_field_hierarchicalmenu extends profile_field_base {
     public function get_field_properties() {
         // We save JSON text; NULL allowed if optional.
         return array(PARAM_TEXT, empty($this->field->required) ? NULL_ALLOWED : NULL_NOT_ALLOWED);
+    }
+
+    /**
+     * Normalise posted/default data into the canonical array structure.
+     *
+     * @param mixed $value
+     * @return array
+     */
+    protected function normalise_selection($value) {
+        $base = ['level0' => '', 'level1' => '', 'level2' => ''];
+
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $value = $decoded;
+            }
+        } else if ($value === null) {
+            $value = [];
+        }
+
+        if ($value instanceof \stdClass) {
+            $value = (array)$value;
+        }
+
+        if (!is_array($value)) {
+            $value = [];
+        }
+
+        $out = $base;
+        foreach ($base as $key => $default) {
+            if (array_key_exists($key, $value) && $value[$key] !== null) {
+                $out[$key] = (string)$value[$key];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Encode the selection array as a JSON string for storage.
+     *
+     * @param array $selection
+     * @return string
+     */
+    protected function encode_selection(array $selection) {
+        $normalised = $this->normalise_selection($selection);
+        $encoded = json_encode($normalised);
+
+        if ($encoded === false) {
+            // Should not happen but keep a predictable fallback.
+            return json_encode(['level0' => '', 'level1' => '', 'level2' => '']);
+        }
+
+        return $encoded;
     }
 }
