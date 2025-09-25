@@ -37,12 +37,51 @@ define(['jquery'], function($) {
         $sel.val(id);
     }
 
+    function collectSelection($l0, $l1, $l2) {
+        return {
+            level0: $l0.val() || '',
+            level1: $l1.val() || '',
+            level2: $l2.val() || ''
+        };
+    }
+
+    function writeHidden($hidden, selection) {
+        if (!$hidden.length) {
+            return;
+        }
+        try {
+            $hidden.val(JSON.stringify(selection));
+        } catch (e) {
+            $hidden.val('');
+        }
+    }
+
+    function readInitialSelection(cfg, $hidden) {
+        if (cfg.current && (cfg.current.level0 || cfg.current.level1 || cfg.current.level2)) {
+            return cfg.current;
+        }
+
+        if ($hidden.length && $hidden.val()) {
+            try {
+                var parsed = JSON.parse($hidden.val());
+                if (parsed && typeof parsed === 'object') {
+                    return parsed;
+                }
+            } catch (e) {
+                // Ignore invalid JSON and fall back to defaults.
+            }
+        }
+
+        return {level0: '', level1: '', level2: ''};
+    }
+
     return {
         /**
          * @param {Object} cfg
          *  - root: {items: [...]}
          *  - fieldname: base input name, e.g. "profile_field_hierarchicalmenu_XX"
          *  - current: {level0, level1, level2} ids (optional)
+         *  - hidden: hidden form element that stores JSON serialised selection
          *  - labels: {l0, l1, l2} (optional)
          */
         init: function(cfg) {
@@ -57,36 +96,46 @@ define(['jquery'], function($) {
             var $l0 = $('select[name="' + name0 + '"]');
             var $l1 = $('select[name="' + name1 + '"]');
             var $l2 = $('select[name="' + name2 + '"]');
+            var $hidden = $('input[name="' + cfg.hidden + '"]');
+
+            var labels = cfg.labels || {};
+            var initial = readInitialSelection(cfg, $hidden);
 
             // Initial population
-            populate($l0, nodeListToOptions(data.items), (cfg.labels && cfg.labels.l0) || 'Choose...');
-            populate($l1, [], (cfg.labels && cfg.labels.l1) || 'Choose...');
-            populate($l2, [], (cfg.labels && cfg.labels.l2) || 'Choose...');
+            populate($l0, nodeListToOptions(data.items), labels.l0 || 'Choose...');
+            populate($l1, [], labels.l1 || 'Choose...');
+            populate($l2, [], labels.l2 || 'Choose...');
 
             // Preselect if we have saved ids
-            if (cfg.current) {
-                preselect($l0, cfg.current.level0 || '');
-                var lvl1 = findChildren(childrenOf, cfg.current.level0 || '');
-                populate($l1, nodeListToOptions(lvl1), (cfg.labels && cfg.labels.l1) || 'Choose...');
-                preselect($l1, cfg.current.level1 || '');
+            preselect($l0, initial.level0 || '');
+            var lvl1 = findChildren(childrenOf, initial.level0 || '');
+            populate($l1, nodeListToOptions(lvl1), labels.l1 || 'Choose...');
+            preselect($l1, initial.level1 || '');
 
-                var lvl2 = findChildren(childrenOf, cfg.current.level1 || '');
-                populate($l2, nodeListToOptions(lvl2), (cfg.labels && cfg.labels.l2) || 'Choose...');
-                preselect($l2, cfg.current.level2 || '');
-            }
+            var lvl2 = findChildren(childrenOf, initial.level1 || '');
+            populate($l2, nodeListToOptions(lvl2), labels.l2 || 'Choose...');
+            preselect($l2, initial.level2 || '');
+
+            writeHidden($hidden, collectSelection($l0, $l1, $l2));
 
             // Wiring changes
             $l0.on('change', function(){
                 var id0 = $l0.val() || '';
                 var lvl1 = findChildren(childrenOf, id0);
-                populate($l1, nodeListToOptions(lvl1), (cfg.labels && cfg.labels.l1) || 'Choose...');
-                populate($l2, [], (cfg.labels && cfg.labels.l2) || 'Choose...');
+                populate($l1, nodeListToOptions(lvl1), labels.l1 || 'Choose...');
+                populate($l2, [], labels.l2 || 'Choose...');
+                writeHidden($hidden, collectSelection($l0, $l1, $l2));
             });
 
             $l1.on('change', function(){
                 var id1 = $l1.val() || '';
                 var lvl2 = findChildren(childrenOf, id1);
-                populate($l2, nodeListToOptions(lvl2), (cfg.labels && cfg.labels.l2) || 'Choose...');
+                populate($l2, nodeListToOptions(lvl2), labels.l2 || 'Choose...');
+                writeHidden($hidden, collectSelection($l0, $l1, $l2));
+            });
+
+            $l2.on('change', function(){
+                writeHidden($hidden, collectSelection($l0, $l1, $l2));
             });
         }
     };
