@@ -3,7 +3,6 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 
-
 class profile_field_hierarchicalmenu extends profile_field_base {
 
     /** @var array decoded tree {root:{items:[...]}} */
