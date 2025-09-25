@@ -3,7 +3,6 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 
-
 class profile_field_hierarchicalmenu extends profile_field_base {
 
     /** @var array decoded tree {root:{items:[...]}} */
@@ -11,6 +10,9 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
     /** @var array current selection ['level0'=>id, 'level1'=>id, 'level2'=>id] */
     protected $current = [];
+
+    /** @var array flat index of nodes keyed by id */
+    protected $nodesbyid = [];
 
     public function __construct($fieldid = 0, $userid = 0, $fielddata = null) {
         parent::__construct($fieldid, $userid, $fielddata);
@@ -25,6 +27,8 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         }
 
         $this->current = $this->normalise_selection($this->data);
+        $this->nodesbyid = [];
+        $this->index_tree($this->tree['root']['items']);
     }
 
     /**
@@ -151,5 +155,50 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         }
 
         return $encoded;
+    }
+
+    /**
+     * Display the selected hierarchy using the node names instead of raw JSON.
+     *
+     * @return string
+     */
+    public function display_data() {
+        $selection = $this->normalise_selection($this->data);
+        $names = [];
+
+        foreach (['level0', 'level1', 'level2'] as $level) {
+            $id = $selection[$level] ?? '';
+            if ($id !== '' && isset($this->nodesbyid[$id]['name'])) {
+                $names[] = format_string(
+                    $this->nodesbyid[$id]['name'],
+                    true,
+                    ['context' => \context_system::instance()]
+                );
+            }
+        }
+
+        if (empty($names)) {
+            return '';
+        }
+
+        return implode(' / ', $names);
+    }
+
+    /**
+     * Build a flat index of the tree nodes by id for quick lookup.
+     *
+     * @param array $nodes
+     * @return void
+     */
+    protected function index_tree(array $nodes) {
+        foreach ($nodes as $node) {
+            if (isset($node['id'])) {
+                $this->nodesbyid[(string)$node['id']] = $node;
+            }
+
+            if (!empty($node['childs']) && is_array($node['childs'])) {
+                $this->index_tree($node['childs']);
+            }
+        }
     }
 }
