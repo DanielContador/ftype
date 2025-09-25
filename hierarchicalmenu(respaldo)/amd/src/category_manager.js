@@ -10,7 +10,7 @@ function($, Str, ModalFactory, ModalEvents) {
 
     var CategoryManager = {
 
-        MAX_LEVELS: 3,
+        maxLevels: 3,
 
         // Data structure: { root: { items: [ { id, name, childs: [...] }, ... ] } }
         categoryData: { root: { items: [] } },
@@ -18,6 +18,11 @@ function($, Str, ModalFactory, ModalEvents) {
         init: function() {
             var self = this;
             $(document).ready(function() {
+                var manager = $('#hierarchical-category-manager');
+                var configuredLevels = parseInt(manager.data('maxlevels'), 10);
+                if (!isNaN(configuredLevels) && configuredLevels > 0) {
+                    self.maxLevels = configuredLevels;
+                }
                 self.bindEvents();
                 self.loadExistingData();
                 // Ensure every node has a stable id (for profile selection later)
@@ -53,6 +58,14 @@ function($, Str, ModalFactory, ModalEvents) {
                     var path = $(this).data('path');
                     self.showDeleteConfirmation(path);
                 });
+
+            $('input[name="param2"]').off('change.hierarchicalmenu').on('change.hierarchicalmenu', function() {
+                var value = parseInt($(this).val(), 10);
+                if (!isNaN(value) && value > 0) {
+                    self.maxLevels = value;
+                    self.renderTree();
+                }
+            });
         },
 
         loadExistingData: function() {
@@ -93,7 +106,7 @@ function($, Str, ModalFactory, ModalEvents) {
             items.forEach(function(item, index) {
                 var path = basePath === '' ? String(index) : basePath + '-' + index;
                 var hasChildren = Array.isArray(item.childs) && item.childs.length > 0;
-                var canAddChildren = level < (self.MAX_LEVELS - 1);
+                var canAddChildren = level < (self.maxLevels - 1);
 
                 html += '<li class="category-item level-' + level + '" data-path="' + path + '">';
                 html += '  <div class="category-content">';
@@ -129,8 +142,10 @@ function($, Str, ModalFactory, ModalEvents) {
 
         showAddCategoryModal: function(parentPath, level) {
             var self = this;
-            if (level >= this.MAX_LEVELS) {
-                alert('Maximum nesting level (3) reached. Cannot add more subcategories.');
+            if (level >= this.maxLevels) {
+                Str.get_string('maxlevelreached', 'profilefield_hierarchicalmenu', this.maxLevels).then(function(message) {
+                    window.alert(message);
+                });
                 return;
             }
             var title = level === 0 ? 'Add Root Category' : 'Add Subcategory';
@@ -146,7 +161,12 @@ function($, Str, ModalFactory, ModalEvents) {
                 modal.getRoot().on(ModalEvents.save, function(e) {
                     e.preventDefault();
                     var name = modal.getRoot().find('#category-name-input').val().trim();
-                    if (!name) { alert('Category name cannot be empty.'); return; }
+                    if (!name) {
+                        Str.get_string('emptycategoryname', 'profilefield_hierarchicalmenu').then(function(message) {
+                            window.alert(message);
+                        });
+                        return;
+                    }
                     self.addCategory(parentPath, name);
                     modal.destroy();
                 });
@@ -175,7 +195,12 @@ function($, Str, ModalFactory, ModalEvents) {
                 modal.getRoot().on(ModalEvents.save, function(e) {
                     e.preventDefault();
                     var name = modal.getRoot().find('#category-name-input').val().trim();
-                    if (!name) { alert('Category name cannot be empty.'); return; }
+                    if (!name) {
+                        Str.get_string('emptycategoryname', 'profilefield_hierarchicalmenu').then(function(message) {
+                            window.alert(message);
+                        });
+                        return;
+                    }
                     self.editCategory(path, name);
                     modal.destroy();
                 });
