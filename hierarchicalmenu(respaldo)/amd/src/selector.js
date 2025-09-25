@@ -1,5 +1,5 @@
 /**
- * Cascading selector for hierarchical profile field
+ * Cascading selector for hierarchical profile field (dynamic depth)
  * @module profilefield_hierarchicalmenu/selector
  */
 define(['jquery'], function($) {
@@ -28,7 +28,7 @@ define(['jquery'], function($) {
     }
 
     function findChildren(childrenOf, id) {
-        if (!id) return []; // nothing selected
+        if (!id) return [];
         return childrenOf[id] || [];
     }
 
@@ -44,7 +44,6 @@ define(['jquery'], function($) {
         levels.forEach(function(level) {
             selection[level.key] = level.$el.val() || '';
         });
-
         return selection;
     }
 
@@ -70,7 +69,8 @@ define(['jquery'], function($) {
             }
             var result = {};
             keys.forEach(function(key) {
-                if (Object.prototype.hasOwnProperty.call(source, key) && source[key] !== null && source[key] !== undefined) {
+                if (Object.prototype.hasOwnProperty.call(source, key) &&
+                    source[key] !== null && source[key] !== undefined) {
                     result[key] = String(source[key]);
                 } else {
                     result[key] = '';
@@ -132,7 +132,6 @@ define(['jquery'], function($) {
             });
 
             var $hidden = $('input[name="' + cfg.hidden + '"]');
-
             var initial = readInitialSelection(cfg, $hidden);
 
             // Populate root level.
