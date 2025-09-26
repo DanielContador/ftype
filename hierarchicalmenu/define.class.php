@@ -41,7 +41,12 @@ class profile_define_hierarchicalmenu extends profile_define_base {
     $PAGE->requires->css('/user/profile/field/hierarchicalmenu/styles.css');
 
     $maxlevels = $this->resolve_max_levels($this->field->param2 ?? null);
-    $labels = $this->resolve_level_labels($this->field->param3 ?? '', $maxlevels);
+    $rawlevellabels = $this->field->param3 ?? '';
+    $labels = $this->resolve_level_labels($rawlevellabels, $maxlevels);
+    $displaylabels = $this->prepare_labels_for_display($rawlevellabels);
+    if ($displaylabels === '') {
+        $displaylabels = implode("\n", $labels);
+    }
 
     // Hidden textarea that will store the hierarchical categories in JSON format.
     $form->addElement('textarea', 'param1', get_string('profilemenuoptions', 'admin'),
@@ -63,7 +68,10 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         ['rows' => max(3, $maxlevels), 'cols' => 40]
     );
     $form->setType('param3', PARAM_TEXT);
-    $form->setDefault('param3', implode("\n", $labels));
+    $form->setDefault('param3', $displaylabels);
+    if (isset($this->field)) {
+        $this->field->param3 = $displaylabels;
+    }
     $form->addHelpButton('param3', 'hierarchicallevellabels', 'profilefield_hierarchicalmenu');
 
 
@@ -263,5 +271,32 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         }
 
         return $resolved;
+    }
+
+    /**
+     * Convert stored labels into a newline separated string for form display.
+     *
+     * @param string $raw
+     * @return string
+     */
+    private function prepare_labels_for_display($raw) {
+        if (!is_string($raw) || $raw === '') {
+            return '';
+        }
+
+        $decoded = json_decode($raw, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $decoded = array_map(static function($value) {
+                return trim((string)$value);
+            }, $decoded);
+            $decoded = array_filter($decoded, static function($value) {
+                return $value !== '';
+            });
+
+            return implode("\n", $decoded);
+        }
+
+        // Normalise existing newline characters.
+        return preg_replace("/(\r\n|\r)/", "\n", $raw);
     }
 }
