@@ -38,8 +38,8 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         $this->levelkeys   = $this->build_level_keys($this->maxlevels);
         $this->levellabels = $this->resolve_level_labels($this->field->param3 ?? '', $this->maxlevels);
 
-        $this->current   = $this->normalise_selection($this->data);
-        $this->nodesbyid = [];
+        $this->current     = $this->normalise_selection($this->data);
+        $this->nodesbyid   = [];
         $this->index_tree($this->tree['root']['items']);
     }
 
@@ -63,7 +63,8 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
         // Hidden element stores the JSON payload that Moodle will persist.
         $mform->addElement('hidden', $this->inputname, '');
-        $mform->setType($this->inputname, PARAM_TEXT);
+        // The hidden element stores JSON so we need to avoid text cleaning that would break encoding.
+        $mform->setType($this->inputname, PARAM_RAW);
 
         // Make them required if field is required (only level0 strictly required).
         if (!empty($this->field->required) && isset($this->levelkeys[0])) {
@@ -98,6 +99,11 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      */
     public function edit_field_set_default($mform) {
         $default = $this->normalise_selection($this->field->defaultdata ?: $this->current);
+
+        foreach ($this->levelkeys as $key) {
+            $mform->setDefault($this->inputname . '[' . $key . ']', $default[$key] ?? '');
+        }
+
         $mform->setDefault($this->inputname, $this->encode_selection($default));
     }
 
@@ -120,11 +126,15 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      * Validation type.
      */
     public function get_field_properties() {
-        return [PARAM_TEXT, empty($this->field->required) ? NULL_ALLOWED : NULL_NOT_ALLOWED];
+        // We save JSON text; NULL allowed if optional.
+        return [PARAM_RAW, empty($this->field->required) ? NULL_ALLOWED : NULL_NOT_ALLOWED];
     }
 
     /**
      * Normalise posted/default data into the canonical array structure.
+     *
+     * @param mixed $value
+     * @return array
      */
     protected function normalise_selection($value) {
         $base = array_fill_keys($this->levelkeys, '');
@@ -158,12 +168,16 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
     /**
      * Encode the selection array as a JSON string for storage.
+     *
+     * @param array $selection
+     * @return string
      */
     protected function encode_selection(array $selection) {
         $normalised = $this->normalise_selection($selection);
         $encoded = json_encode($normalised);
 
         if ($encoded === false) {
+            // Should not happen but keep a predictable fallback.
             return json_encode(array_fill_keys($this->levelkeys, ''));
         }
 
@@ -172,6 +186,8 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
     /**
      * Display the selected hierarchy using the node names instead of raw JSON.
+     *
+     * @return string
      */
     public function display_data() {
         $selection = $this->normalise_selection($this->data);
@@ -197,12 +213,16 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
     /**
      * Build a flat index of the tree nodes by id for quick lookup.
+     *
+     * @param array $nodes
+     * @return void
      */
     protected function index_tree(array $nodes) {
         foreach ($nodes as $node) {
             if (isset($node['id'])) {
                 $this->nodesbyid[(string)$node['id']] = $node;
             }
+
             if (!empty($node['childs']) && is_array($node['childs'])) {
                 $this->index_tree($node['childs']);
             }
@@ -211,6 +231,9 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
     /**
      * Determine the configured max levels, defaulting to 3.
+     *
+     * @param mixed $raw
+     * @return int
      */
     protected function resolve_max_levels($raw) {
         $value = (int)$raw;
@@ -222,6 +245,9 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
     /**
      * Build level keys based on the max levels.
+     *
+     * @param int $maxlevels
+     * @return array
      */
     protected function build_level_keys($maxlevels) {
         $keys = [];
@@ -233,6 +259,10 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
     /**
      * Resolve human-readable labels for each hierarchy level.
+     *
+     * @param string $raw
+     * @param int $maxlevels
+     * @return array
      */
     protected function resolve_level_labels($raw, $maxlevels) {
         $labels = [];

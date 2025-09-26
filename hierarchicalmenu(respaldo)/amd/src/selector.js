@@ -1,5 +1,5 @@
 /**
- * Cascading selector for hierarchical profile field (dynamic depth)
+ * Cascading selector for hierarchical profile field (supports dynamic levels)
  * @module profilefield_hierarchicalmenu/selector
  */
 define(['jquery'], function($) {
@@ -28,29 +28,26 @@ define(['jquery'], function($) {
     }
 
     function findChildren(childrenOf, id) {
-        if (!id) return [];
+        if (!id) return []; // nothing selected
         return childrenOf[id] || [];
     }
 
     function preselect($sel, id) {
-        if (id === undefined || id === null || id === '') {
-            return;
+        if (id != null && id !== '') {
+            $sel.val(String(id));
         }
-        $sel.val(String(id));
     }
 
     function collectSelection(levels) {
         var selection = {};
-        levels.forEach(function(level) {
-            selection[level.key] = level.$el.val() || '';
+        levels.forEach(function(l){
+            selection[l.key] = l.$el.val() || '';
         });
         return selection;
     }
 
     function writeHidden($hidden, selection) {
-        if (!$hidden.length) {
-            return;
-        }
+        if (!$hidden.length) return;
         try {
             $hidden.val(JSON.stringify(selection));
         } catch (e) {
@@ -58,39 +55,33 @@ define(['jquery'], function($) {
         }
     }
 
-    function readInitialSelection(cfg, $hidden) {
-        var keys = (cfg.levels || []).map(function(level) { return level.key; });
-        var base = {};
-        keys.forEach(function(key) { base[key] = ''; });
+    function readInitialSelection(cfg, $hidden, levels) {
+        var keys = levels.map(l => l.key);
+        var blank = {};
+        keys.forEach(k => blank[k] = '');
 
-        function normalise(source) {
-            if (!source || typeof source !== 'object') {
-                return null;
-            }
-            var result = {};
-            keys.forEach(function(key) {
-                if (Object.prototype.hasOwnProperty.call(source, key) &&
-                    source[key] !== null && source[key] !== undefined) {
-                    result[key] = String(source[key]);
-                } else {
-                    result[key] = '';
-                }
-            });
-            return result;
+        function normalize(obj) {
+            var out = {};
+            keys.forEach(k => out[k] = (obj && obj[k] != null) ? String(obj[k]) : '');
+            return out;
         }
 
-        var initial = normalise(cfg.current);
+        if (cfg.current && typeof cfg.current === 'object') {
+            return normalize(cfg.current);
+        }
 
-        if (!initial && $hidden.length && $hidden.val()) {
+        if ($hidden.length && $hidden.val()) {
             try {
                 var parsed = JSON.parse($hidden.val());
-                initial = normalise(parsed);
+                if (parsed && typeof parsed === 'object') {
+                    return normalize(parsed);
+                }
             } catch (e) {
-                initial = null;
+                // Ignore invalid JSON
             }
         }
 
-        return initial || base;
+        return blank;
     }
 
     return {
@@ -98,64 +89,52 @@ define(['jquery'], function($) {
          * @param {Object} cfg
          *  - root: {items: [...]}
          *  - fieldname: base input name, e.g. "profile_field_hierarchicalmenu_XX"
-         *  - current: {levelX: value, ...} ids (optional)
+         *  - current: {levelX: id, ...} (optional)
          *  - hidden: hidden form element that stores JSON serialised selection
-         *  - levels: [{key, placeholder}] describing each cascading level
+         *  - levels: [{key, placeholder}], dynamic depth
          */
         init: function(cfg) {
             var data = cfg.root || { items: [] };
             var byId = {}, childrenOf = {};
             indexById(data.items, byId, childrenOf);
 
-            var levelConfigs = (cfg.levels || []).map(function(level) {
+            var levels = (cfg.levels || []).map(function(l){
+                var name = cfg.fieldname + '[' + l.key + ']';
                 return {
-                    key: level.key,
-                    placeholder: level.placeholder || 'Choose...'
-                };
-            });
-
-            if (!levelConfigs.length) {
-                return;
-            }
-
-            var levels = levelConfigs.map(function(levelCfg) {
-                var name = cfg.fieldname + '[' + levelCfg.key + ']';
-                return {
-                    key: levelCfg.key,
-                    placeholder: levelCfg.placeholder,
+                    key: l.key,
+                    placeholder: l.placeholder || 'Choose...',
                     $el: $('select[name="' + name + '"]')
                 };
             });
 
-            var placeholders = levelConfigs.map(function(levelCfg) {
-                return levelCfg.placeholder || 'Choose...';
-            });
+            if (!levels.length) return;
 
             var $hidden = $('input[name="' + cfg.hidden + '"]');
-            var initial = readInitialSelection(cfg, $hidden);
+            var initial = readInitialSelection(cfg, $hidden, levels);
 
-            // Populate root level.
-            populate(levels[0].$el, nodeListToOptions(data.items), placeholders[0]);
-            preselect(levels[0].$el, initial[levelConfigs[0].key]);
+            // Initial population
+            populate(levels[0].$el, nodeListToOptions(data.items), levels[0].placeholder);
+            preselect(levels[0].$el, initial[levels[0].key]);
 
-            // Populate subsequent levels based on initial selection.
+            // populate subsequent levels based on initial selection
             for (var i = 1; i < levels.length; i++) {
-                var parentKey = levelConfigs[i - 1].key;
-                var parentId = initial[parentKey] || '';
-                var children = parentId ? nodeListToOptions(findChildren(childrenOf, parentId)) : [];
-                populate(levels[i].$el, children, placeholders[i]);
-                preselect(levels[i].$el, initial[levelConfigs[i].key]);
+                var parentVal = initial[levels[i-1].key] || '';
+                var opts = parentVal ? findChildren(childrenOf, parentVal) : [];
+                populate(levels[i].$el, nodeListToOptions(opts), levels[i].placeholder);
+                preselect(levels[i].$el, initial[levels[i].key]);
             }
 
             writeHidden($hidden, collectSelection(levels));
 
-            // Wiring changes
-            levels.forEach(function(level, index) {
-                level.$el.on('change', function() {
-                    for (var i = index + 1; i < levels.length; i++) {
-                        var parentVal = levels[i - 1].$el.val() || '';
-                        var nodes = parentVal ? nodeListToOptions(findChildren(childrenOf, parentVal)) : [];
-                        populate(levels[i].$el, nodes, placeholders[i]);
+            // Wire changes
+            levels.forEach(function(level, idx){
+                level.$el.on('change', function(){
+                    // repopulate lower levels
+                    for (var j = idx+1; j < levels.length; j++) {
+                        var parentVal = levels[j-1].$el.val() || '';
+                        var opts = parentVal ? findChildren(childrenOf, parentVal) : [];
+                        populate(levels[j].$el, nodeListToOptions(opts), levels[j].placeholder);
+                        preselect(levels[j].$el, levels[j].val());
                     }
                     writeHidden($hidden, collectSelection(levels));
                 });
