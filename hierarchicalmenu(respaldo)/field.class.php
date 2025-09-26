@@ -64,7 +64,8 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
         // Hidden element stores the JSON payload that Moodle will persist.
         $mform->addElement('hidden', $this->inputname, '');
-        $mform->setType($this->inputname, PARAM_TEXT);
+        // The hidden element stores JSON so we need to avoid text cleaning that would break encoding.
+        $mform->setType($this->inputname, PARAM_RAW);
 
         // Make them required if field is required (only level0 strictly required).
         if (!empty($this->field->required) && isset($this->levelkeys[0])) {
@@ -101,6 +102,11 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      */
     public function edit_field_set_default($mform) {
         $default = $this->normalise_selection($this->field->defaultdata ?: $this->current);
+
+        foreach ($this->levelkeys as $key) {
+            $mform->setDefault($this->inputname . '[' . $key . ']', $default[$key] ?? '');
+        }
+
         $mform->setDefault($this->inputname, $this->encode_selection($default));
     }
 
@@ -125,7 +131,7 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      */
     public function get_field_properties() {
         // We save JSON text; NULL allowed if optional.
-        return array(PARAM_TEXT, empty($this->field->required) ? NULL_ALLOWED : NULL_NOT_ALLOWED);
+        return array(PARAM_RAW, empty($this->field->required) ? NULL_ALLOWED : NULL_NOT_ALLOWED);
     }
 
     /**
