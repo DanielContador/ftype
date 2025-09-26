@@ -1,5 +1,5 @@
 /**
- * Cascading selector for hierarchical profile field
+ * Cascading selector for hierarchical profile field (supports dynamic levels)
  * @module profilefield_hierarchicalmenu/selector
  */
 define(['jquery'], function($) {
@@ -64,7 +64,6 @@ define(['jquery'], function($) {
         levels.forEach(function(level) {
             selection[level.key] = level.$el.val() || '';
         });
-
         return selection;
     }
 
