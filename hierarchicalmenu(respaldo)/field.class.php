@@ -38,8 +38,8 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         $this->levelkeys   = $this->build_level_keys($this->maxlevels);
         $this->levellabels = $this->resolve_level_labels($this->field->param3 ?? '', $this->maxlevels);
 
-        $this->current     = $this->normalise_selection($this->data);
-        $this->nodesbyid   = [];
+        $this->current   = $this->normalise_selection($this->data);
+        $this->nodesbyid = [];
         $this->index_tree($this->tree['root']['items']);
     }
 
@@ -63,7 +63,6 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
         // Hidden element stores the JSON payload that Moodle will persist.
         $mform->addElement('hidden', $this->inputname, '');
-        // The hidden element stores JSON so we need to avoid text cleaning that would break encoding.
         $mform->setType($this->inputname, PARAM_RAW);
 
         // Make them required if field is required (only level0 strictly required).
@@ -126,7 +125,6 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      * Validation type.
      */
     public function get_field_properties() {
-        // We save JSON text; NULL allowed if optional.
         return [PARAM_RAW, empty($this->field->required) ? NULL_ALLOWED : NULL_NOT_ALLOWED];
     }
 
@@ -177,7 +175,6 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         $encoded = json_encode($normalised);
 
         if ($encoded === false) {
-            // Should not happen but keep a predictable fallback.
             return json_encode(array_fill_keys($this->levelkeys, ''));
         }
 
