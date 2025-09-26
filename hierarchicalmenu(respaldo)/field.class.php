@@ -3,7 +3,6 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 
-
 class profile_field_hierarchicalmenu extends profile_field_base {
 
     /** @var array decoded tree {root:{items:[...]}} */
@@ -35,12 +34,12 @@ class profile_field_hierarchicalmenu extends profile_field_base {
             }
         }
 
-        $this->maxlevels = $this->resolve_max_levels($this->field->param2 ?? null);
-        $this->levelkeys = $this->build_level_keys($this->maxlevels);
+        $this->maxlevels   = $this->resolve_max_levels($this->field->param2 ?? null);
+        $this->levelkeys   = $this->build_level_keys($this->maxlevels);
         $this->levellabels = $this->resolve_level_labels($this->field->param3 ?? '', $this->maxlevels);
 
-        $this->current = $this->normalise_selection($this->data);
-        $this->nodesbyid = [];
+        $this->current     = $this->normalise_selection($this->data);
+        $this->nodesbyid   = [];
         $this->index_tree($this->tree['root']['items']);
     }
 
@@ -85,15 +84,13 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         $PAGE->requires->js_call_amd(
             'profilefield_hierarchicalmenu/selector',
             'init',
-            [
-                [
-                    'root'      => $this->tree['root'],
-                    'fieldname' => $this->inputname,
-                    'current'   => $this->current,
-                    'hidden'    => $this->inputname,
-                    'levels'    => $levelsconfig
-                ]
-            ]
+            [[
+                'root'      => $this->tree['root'],
+                'fieldname' => $this->inputname,
+                'current'   => $this->current,
+                'hidden'    => $this->inputname,
+                'levels'    => $levelsconfig
+            ]]
         );
     }
 
@@ -112,7 +109,6 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
     /**
      * Save the selected IDs (not names) as JSON.
-     * $data arrives as array: ['level0'=>id, 'level1'=>id, 'level2'=>id]
      */
     public function edit_save_data_preprocess($data, $datarecord) {
         $selection = $this->normalise_selection($data);
@@ -131,7 +127,7 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      */
     public function get_field_properties() {
         // We save JSON text; NULL allowed if optional.
-        return array(PARAM_RAW, empty($this->field->required) ? NULL_ALLOWED : NULL_NOT_ALLOWED);
+        return [PARAM_RAW, empty($this->field->required) ? NULL_ALLOWED : NULL_NOT_ALLOWED];
     }
 
     /**
@@ -244,7 +240,6 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         if ($value < 1) {
             $value = 3;
         }
-
         return $value;
     }
 
@@ -259,7 +254,6 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         for ($i = 0; $i < $maxlevels; $i++) {
             $keys[] = 'level' . $i;
         }
-
         return $keys;
     }
 
