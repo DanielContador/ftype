@@ -34,14 +34,19 @@ class profile_define_hierarchicalmenu extends profile_define_base {
      * Adds elements to the form for creating/editing this type of profile field.
      * @param moodleform $form
      */
-	public function define_form_specific($form) {
+        public function define_form_specific($form) {
     global $PAGE;
 
     // Include CSS styles for the hierarchical category manager.
     $PAGE->requires->css('/user/profile/field/hierarchicalmenu/styles.css');
 
     $maxlevels = $this->resolve_max_levels($this->field->param2 ?? null);
-    $labels = $this->resolve_level_labels($this->field->param3 ?? '', $maxlevels);
+    $rawlevellabels = $this->field->param3 ?? '';
+    $labels = $this->resolve_level_labels($rawlevellabels, $maxlevels);
+    $displaylabels = $this->prepare_labels_for_display($rawlevellabels);
+    if ($displaylabels === '') {
+        $displaylabels = implode("\n", $labels);
+    }
 
     // Hidden textarea that will store the hierarchical categories in JSON format.
     $form->addElement('textarea', 'param1', get_string('profilemenuoptions', 'admin'),
@@ -63,7 +68,7 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         ['rows' => max(3, $maxlevels), 'cols' => 40]
     );
     $form->setType('param3', PARAM_TEXT);
-    $form->setDefault('param3', implode("\n", $labels));
+    $form->setDefault('param3', $displaylabels);
     $form->addHelpButton('param3', 'hierarchicallevellabels', 'profilefield_hierarchicalmenu');
 
 
@@ -86,6 +91,41 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         </script>
     </div>');
 }
+
+    /**
+     * Ensure stored level labels are presented one per line when the form data is loaded.
+     *
+     * @param MoodleQuickForm $form
+     */
+    public function define_after_data(&$form) {
+        if (!$form->elementExists('param3')) {
+            return;
+        }
+
+        $maxlevels = $this->resolve_max_levels($this->field->param2 ?? null);
+
+        $param3element = $form->getElement('param3');
+        $currentvalue = $this->normalise_form_value($param3element->getValue());
+        if ($currentvalue === '' && isset($this->field)) {
+            $currentvalue = $this->field->param3 ?? '';
+        }
+
+        $displaylabels = $this->prepare_labels_for_display($currentvalue);
+        if ($displaylabels === '') {
+            $displaylabels = implode("\n", $this->resolve_level_labels('', $maxlevels));
+        }
+
+        if ($displaylabels !== $currentvalue) {
+            $param3element->setValue($displaylabels);
+        }
+
+        if ($form->elementExists('param2')) {
+            $currentlevels = $this->normalise_form_value($form->getElement('param2')->getValue());
+            if ($currentlevels === '' || !ctype_digit((string)$currentlevels)) {
+                $form->getElement('param2')->setValue($maxlevels);
+            }
+        }
+    }
 
     /**
      * Validates data for the profile field.
@@ -263,5 +303,54 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         }
 
         return $resolved;
+    }
+
+    /**
+     * Convert stored labels into a newline separated string for form display.
+     *
+     * @param string $raw
+     * @return string
+     */
+    private function prepare_labels_for_display($raw) {
+        if (!is_string($raw) || $raw === '') {
+            return '';
+        }
+
+        $decoded = json_decode($raw, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $decoded = array_map(static function($value) {
+                return trim((string)$value);
+            }, $decoded);
+            $decoded = array_filter($decoded, static function($value) {
+                return $value !== '';
+            });
+
+            return implode("\n", $decoded);
+        }
+
+        // Normalise existing newline characters.
+        return preg_replace("/(\r\n|\r)/", "\n", $raw);
+    }
+
+    /**
+     * Normalise a MoodleQuickForm value to a simple scalar string.
+     *
+     * @param mixed $value
+     * @return string
+     */
+    private function normalise_form_value($value) {
+        if (is_array($value)) {
+            $value = reset($value);
+        }
+
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_scalar($value)) {
+            return (string)$value;
+        }
+
+        return '';
     }
 }
