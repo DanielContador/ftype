@@ -34,14 +34,19 @@ class profile_define_hierarchicalmenu extends profile_define_base {
      * Adds elements to the form for creating/editing this type of profile field.
      * @param moodleform $form
      */
-	public function define_form_specific($form) {
+        public function define_form_specific($form) {
     global $PAGE;
 
     // Include CSS styles for the hierarchical category manager.
     $PAGE->requires->css('/user/profile/field/hierarchicalmenu/styles.css');
 
     $maxlevels = $this->resolve_max_levels($this->field->param2 ?? null);
-    $labels = $this->resolve_level_labels($this->field->param3 ?? '', $maxlevels);
+    $rawlevellabels = $this->field->param3 ?? '';
+    $labels = $this->resolve_level_labels($rawlevellabels, $maxlevels);
+    $displaylabels = $this->prepare_labels_for_display($rawlevellabels);
+    if ($displaylabels === '') {
+        $displaylabels = implode("\n", $labels);
+    }
 
     // Hidden textarea that will store the hierarchical categories in JSON format.
     $form->addElement('textarea', 'param1', get_string('profilemenuoptions', 'admin'),
@@ -63,7 +68,10 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         ['rows' => max(3, $maxlevels), 'cols' => 40]
     );
     $form->setType('param3', PARAM_TEXT);
-    $form->setDefault('param3', implode("\n", $labels));
+    $form->setDefault('param3', $displaylabels);
+    if (isset($this->field)) {
+        $this->field->param3 = $displaylabels;
+    }
     $form->addHelpButton('param3', 'hierarchicallevellabels', 'profilefield_hierarchicalmenu');
 
 
@@ -86,6 +94,52 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         </script>
     </div>');
 }
+
+    /**
+     * Ensure stored level labels are presented one per line when the form data is loaded.
+     *
+     * @param MoodleQuickForm $form
+     */
+    public function define_after_data(&$form) {
+        if ($form->isSubmitted()) {
+            return;
+        }
+
+        global $DB;
+
+        $id = optional_param('id', 0, PARAM_INT);
+        $fielddata = null;
+        if ($id > 0) {
+            $fielddata = $DB->get_record('user_info_field', ['id' => $id], 'param2, param3');
+        }
+
+        $rawlabels = '';
+        $maxlevels = null;
+        if ($fielddata) {
+            $rawlabels = $fielddata->param3 ?? '';
+            $maxlevels = $this->resolve_max_levels($fielddata->param2 ?? null);
+        } else if (isset($this->field)) {
+            $rawlabels = $this->field->param3 ?? '';
+            $maxlevels = $this->resolve_max_levels($this->field->param2 ?? null);
+        }
+
+        if ($maxlevels === null) {
+            $maxlevels = $this->resolve_max_levels(null);
+        }
+
+        $displaylabels = $this->prepare_labels_for_display($rawlabels);
+        if ($displaylabels === '') {
+            $displaylabels = implode("\n", $this->resolve_level_labels('', $maxlevels));
+        }
+
+        if ($form->elementExists('param2')) {
+            $form->getElement('param2')->setValue($maxlevels);
+        }
+
+        if ($form->elementExists('param3')) {
+            $form->getElement('param3')->setValue($displaylabels);
+        }
+    }
 
     /**
      * Validates data for the profile field.
@@ -263,5 +317,32 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         }
 
         return $resolved;
+    }
+
+    /**
+     * Convert stored labels into a newline separated string for form display.
+     *
+     * @param string $raw
+     * @return string
+     */
+    private function prepare_labels_for_display($raw) {
+        if (!is_string($raw) || $raw === '') {
+            return '';
+        }
+
+        $decoded = json_decode($raw, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $decoded = array_map(static function($value) {
+                return trim((string)$value);
+            }, $decoded);
+            $decoded = array_filter($decoded, static function($value) {
+                return $value !== '';
+            });
+
+            return implode("\n", $decoded);
+        }
+
+        // Normalise existing newline characters.
+        return preg_replace("/(\r\n|\r)/", "\n", $raw);
     }
 }
