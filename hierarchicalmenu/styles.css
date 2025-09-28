@@ -52,16 +52,21 @@
 }
 
 .category-item.level-0 {
-    border-left: 4px solid #007bff;
+    border-left: 4px solid #7049BC;
 }
 
 .category-item.level-1 {
-    border-left: 4px solid #28a745;
+    border-left: 4px solid #7049BCB2;
     margin-left: 1.5rem;
 }
 
 .category-item.level-2 {
-    border-left: 4px solid #ffc107;
+    border-left: 4px solid #7049BC66;
+    margin-left: 3rem;
+}
+
+.category-item.level-3 {
+    border-left: 4px solid #7049BC33;
     margin-left: 3rem;
 }
 
@@ -212,4 +217,16 @@
     border-color: #80bdff;
     outline: 0;
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+#category-tree-container #category-tree button{
+	
+	border:none !important;
+	background-color: transparent !important;
+}
+
+#category-tree-container #add-root-category{
+	border-radius:4px !important;
+	background-color:#7049BC !important;
+	border:none !important;
 }
