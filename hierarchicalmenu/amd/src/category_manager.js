@@ -127,15 +127,23 @@ function($, Str, ModalFactory, ModalEvents) {
                 html += '    <div class="category-actions">';
 
                 if (canAddChildren) {
-                    html += '      <button type="button" class="btn btn-sm btn-outline-primary add-subcategory" ' +
-                            'data-path="' + path + '" data-level="' + level + '" title="Add Subcategory">+ Sub</button>';
+				html += '      <button type="button" class="add-subcategory" ' +
+						'data-path="' + path + '" data-level="' + level + '" title="Add Subcategory">' +
+						'<img src="' + M.util.image_url('pluscat', 'theme_dl') + '" alt="Add Subcategory" class="icon">' +
+						'</button>';
+
                 }
 
-                html += '      <button type="button" class="btn btn-sm btn-outline-secondary edit-category" ' +
-                        'data-path="' + path + '" title="Edit Category">Edit</button>';
+				html += '      <button type="button" class="btn btn-sm btn-outline-secondary edit-category" ' +
+						'data-path="' + path + '" title="Edit Category">' +
+						'<img src="' + M.util.image_url('editcat', 'theme_dl') + '" alt="Edit" class="icon">' +
+						'</button>';
 
-                html += '      <button type="button" class="btn btn-sm btn-outline-danger delete-category" ' +
-                        'data-path="' + path + '" title="Delete Category">Delete</button>';
+
+				html += '      <button type="button" class="btn btn-sm btn-outline-secondary delete-category" ' +
+						'data-path="' + path + '" title="Delete Category">' +
+						'<img src="' + M.util.image_url('deletecat', 'theme_dl') + '" alt="Delete" class="icon">' +
+						'</button>';
 
                 html += '    </div>';
                 html += '  </div>';
