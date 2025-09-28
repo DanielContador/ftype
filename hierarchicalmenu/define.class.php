@@ -70,11 +70,20 @@ class profile_define_hierarchicalmenu extends profile_define_base {
         $form->setDefault('param3', $displaylabels);
         $form->addHelpButton('param3', 'hierarchicallevellabels', 'profilefield_hierarchicalmenu');
 
+        $searchlabel = get_string('categorysearch', 'profilefield_hierarchicalmenu');
+        $searchplaceholder = get_string('categorysearchplaceholder', 'profilefield_hierarchicalmenu');
+        $noresultsmessage = get_string('categorysearchnoresults', 'profilefield_hierarchicalmenu');
+        $emptycategoriesmessage = get_string('nocategoriesdefined', 'profilefield_hierarchicalmenu');
+
         // Visual container for the hierarchical category manager.
         $form->addElement('html', '<div id="hierarchical-category-manager" data-maxlevels="' . $maxlevels . '">
             <h4>' . get_string('hierarchicalcategories', 'profilefield_hierarchicalmenu') . '</h4>
+            <div class="category-search">
+                <label for="category-search-input">' . s($searchlabel) . '</label>
+                <input type="text" id="category-search-input" class="form-control" placeholder="' . s($searchplaceholder) . '" autocomplete="off">
+            </div>
             <div id="category-tree-container">
-                <div id="category-tree"></div>
+                <div id="category-tree" data-empty-text="' . s($emptycategoriesmessage) . '" data-no-results-text="' . s($noresultsmessage) . '"></div>
                 <div class="category-controls">
                     <button type="button" id="add-root-category" class="btn btn-primary">
                         ' . get_string('addrootcategory', 'profilefield_hierarchicalmenu') . '

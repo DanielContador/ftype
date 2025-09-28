@@ -15,6 +15,8 @@ function($, Str, ModalFactory, ModalEvents) {
         // Data structure: { root: { items: [ { id, name, childs: [...] }, ... ] } }
         categoryData: { root: { items: [] } },
 
+        searchQuery: '',
+
         init: function() {
             var self = this;
             $(document).ready(function() {
@@ -38,6 +40,11 @@ function($, Str, ModalFactory, ModalEvents) {
             $('#add-root-category').off('click').on('click', function(e) {
                 e.preventDefault();
                 self.showAddCategoryModal(null, 0, null);
+            });
+
+            $('#category-search-input').off('input').on('input', function() {
+                self.searchQuery = $(this).val();
+                self.applySearchFilter();
             });
 
             // Delegated handlers in the tree
@@ -92,12 +99,18 @@ function($, Str, ModalFactory, ModalEvents) {
 
         renderTree: function() {
             var $container = $('#category-tree').empty();
+            var emptyText = $container.data('emptyText') || 'No categories defined yet. Click "Add Root Category" to start.';
             if (!this.categoryData.root.items.length) {
-                $container.html('<p class="text-muted">No categories defined yet. Click "Add Root Category" to start.</p>');
+                $container.html('<p class="text-muted">' + this.escapeHtml(String(emptyText)) + '</p>');
                 return;
             }
+            var noResultsText = $container.data('noResultsText') || 'No categories match your search.';
             var html = this.renderTreeLevel(this.categoryData.root.items, 0, '');
-            $container.html('<ul class="category-tree-root">' + html + '</ul>');
+            $container.html(
+                '<ul class="category-tree-root">' + html + '</ul>' +
+                '<p class="text-muted category-search-empty" style="display:none;">' + this.escapeHtml(String(noResultsText)) + '</p>'
+            );
+            this.applySearchFilter();
         },
 
         // Render items at a level. `basePath` is the index path to this array ('' for root).
@@ -136,6 +149,81 @@ function($, Str, ModalFactory, ModalEvents) {
                 html += '</li>';
             });
             return html;
+        },
+
+        applySearchFilter: function() {
+            if (!this.categoryData.root.items.length) {
+                return;
+            }
+
+            var query = this.searchQuery.trim().toLowerCase();
+            var $container = $('#category-tree');
+            var $items = $container.find('.category-item');
+            var $emptyMessage = $container.find('.category-search-empty');
+
+            if (query === '') {
+                $items.show();
+                $emptyMessage.hide();
+                return;
+            }
+
+            var matches = {};
+            var hasMatches = this.collectMatchingPaths(this.categoryData.root.items, query, '', matches);
+            var anyVisible = false;
+
+            $items.each(function() {
+                var $item = $(this);
+                var path = String($item.data('path'));
+                if (Object.prototype.hasOwnProperty.call(matches, path)) {
+                    $item.show();
+                    anyVisible = true;
+                } else {
+                    $item.hide();
+                }
+            });
+
+            if (hasMatches && anyVisible) {
+                $emptyMessage.hide();
+            } else {
+                $emptyMessage.show();
+            }
+        },
+
+        collectMatchingPaths: function(items, query, basePath, matches) {
+            var self = this;
+            var matched = false;
+
+            (items || []).forEach(function(item, index) {
+                var path = basePath === '' ? String(index) : basePath + '-' + index;
+                var name = item && item.name ? String(item.name) : '';
+                var normalised = name.toLowerCase();
+                var nameMatches = normalised.indexOf(query) !== -1;
+                var childMatches = false;
+
+                if (Array.isArray(item.childs) && item.childs.length) {
+                    childMatches = self.collectMatchingPaths(item.childs, query, path, matches);
+                }
+
+                if (nameMatches || childMatches) {
+                    matches[path] = true;
+                    self.addAncestorPaths(path, matches);
+                    matched = true;
+                }
+            });
+
+            return matched;
+        },
+
+        addAncestorPaths: function(path, matches) {
+            var parts = String(path).split('-');
+            if (parts.length <= 1) {
+                return;
+            }
+
+            for (var i = parts.length - 1; i > 0; i--) {
+                var ancestor = parts.slice(0, i).join('-');
+                matches[ancestor] = true;
+            }
         },
 
         /* ----------------- modals ----------------- */
