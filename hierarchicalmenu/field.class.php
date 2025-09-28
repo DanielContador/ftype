@@ -173,6 +173,20 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      */
     public function edit_save_data_preprocess($data, $datarecord) {
         $selection = $this->normalise_selection($data);
+
+        if (is_array($data) && array_key_exists('leaf', $data)) {
+            $leafid = $data['leaf'];
+
+            if ($leafid !== '' && $leafid !== null) {
+                [, $leafmap] = $this->build_leaf_options();
+                $leafkey = (string)$leafid;
+
+                if (isset($leafmap[$leafkey]) && is_array($leafmap[$leafkey])) {
+                    $selection = $this->normalise_selection($leafmap[$leafkey]);
+                }
+            }
+        }
+
         return $this->encode_selection($selection);
     }
 
