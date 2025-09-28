@@ -55,6 +55,68 @@ define(['jquery'], function($) {
         }
     }
 
+    function buildBlankSelection(keys) {
+        var blank = {};
+        keys.forEach(function(key){
+            blank[key] = '';
+        });
+        return blank;
+    }
+
+    function normaliseFromObject(obj, keys) {
+        var blank = buildBlankSelection(keys);
+        if (!obj || typeof obj !== 'object') {
+            return blank;
+        }
+
+        var out = $.extend({}, blank);
+        keys.forEach(function(key){
+            if (obj[key] != null) {
+                out[key] = String(obj[key]);
+            }
+        });
+
+        return out;
+    }
+
+    function readHiddenSelection($hidden, keys) {
+        if (!$hidden.length || !$hidden.val()) {
+            return buildBlankSelection(keys);
+        }
+
+        try {
+            var parsed = JSON.parse($hidden.val());
+            return normaliseFromObject(parsed, keys);
+        } catch (e) {
+            return buildBlankSelection(keys);
+        }
+    }
+
+    function resolveLeafSelection(map, blank, keys, leafkey, leafId, fallback) {
+        var id = leafId != null ? String(leafId) : '';
+        var selection = $.extend({}, blank);
+
+        if (!id) {
+            return selection;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(map, id)) {
+            var mapped = map[id] || {};
+            keys.forEach(function(key){
+                if (mapped[key] != null) {
+                    selection[key] = String(mapped[key]);
+                }
+            });
+            return selection;
+        }
+
+        if (fallback && fallback[leafkey] === id) {
+            return $.extend(selection, fallback);
+        }
+
+        return selection;
+    }
+
     function readInitialSelection(cfg, $hidden, levels) {
         var keys = levels.map(l => l.key);
         var blank = {};
@@ -138,6 +200,50 @@ define(['jquery'], function($) {
                     }
                     writeHidden($hidden, collectSelection(levels));
                 });
+            });
+        },
+        /**
+         * Initialiser for the simplified single-leaf selector.
+         *
+         * @param {Object} cfg
+         *  - hidden: name of the hidden input storing JSON selection
+         *  - leafkey: key representing the final level (e.g. level3)
+         *  - leafname: name attribute of the visible select element
+         *  - leafmap: mapping of leaf option id => {level0: id, level1: id, ...}
+         *  - levelkeys: ordered list of hierarchy keys
+         */
+        initLeaf: function(cfg) {
+            var keys = Array.isArray(cfg.levelkeys) ? cfg.levelkeys.slice() : [];
+            var blank = buildBlankSelection(keys);
+            var leafkey = cfg.leafkey || (keys.length ? keys[keys.length - 1] : 'leaf');
+            var map = cfg.leafmap || {};
+
+            var $select = $('select[name="' + cfg.leafname + '"]');
+            var $hidden = $('input[name="' + cfg.hidden + '"]');
+
+            if (!$select.length || !$hidden.length) {
+                return;
+            }
+
+            var fallback = readHiddenSelection($hidden, keys);
+            var initialLeaf = fallback[leafkey] || $select.val() || '';
+
+            if (initialLeaf) {
+                $select.val(String(initialLeaf));
+            } else {
+                $select.val('');
+            }
+
+            function syncHidden(leafId) {
+                var selection = resolveLeafSelection(map, blank, keys, leafkey, leafId, fallback);
+                writeHidden($hidden, selection);
+                fallback = selection;
+            }
+
+            syncHidden($select.val() || '');
+
+            $select.on('change', function(){
+                syncHidden($(this).val() || '');
             });
         }
     };

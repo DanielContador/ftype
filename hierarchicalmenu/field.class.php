@@ -49,17 +49,24 @@ class profile_field_hierarchicalmenu extends profile_field_base {
     public function edit_field_add($mform) {
         global $PAGE;
 
-        foreach ($this->levelkeys as $index => $key) {
-            $label = $this->levellabels[$index] ?? get_string('levellabeldefault', 'profilefield_hierarchicalmenu', $index + 1);
-            $formattedlabel = format_string($label, true, ['context' => \context_system::instance()]);
-            $mform->addElement(
-                'select',
-                $this->inputname."[{$key}]",
-                format_string($this->field->name) . ' – ' . $formattedlabel,
-                []
-            );
-            $mform->setType($this->inputname."[{$key}]", PARAM_RAW);
-        }
+        $context = \context_system::instance();
+        $leafindex = max(count($this->levelkeys) - 1, 0);
+        $leafkey = $this->levelkeys[$leafindex] ?? 'level0';
+        $leaflabel = $this->levellabels[$leafindex] ?? get_string('levellabeldefault', 'profilefield_hierarchicalmenu', $leafindex + 1);
+        $formattedfieldname = format_string($this->field->name, true, ['context' => $context]);
+        $formattedlabel = format_string($leaflabel, true, ['context' => $context]);
+
+        [$leafoptions, $leafmap] = $this->build_leaf_options();
+        $placeholder = get_string('chooselevel', 'profilefield_hierarchicalmenu', $leaflabel);
+        $selectoptions = ['' => $placeholder] + $leafoptions;
+
+        $mform->addElement(
+            'select',
+            $this->inputname . '[leaf]',
+            $formattedfieldname . ' – ' . $formattedlabel,
+            $selectoptions
+        );
+        $mform->setType($this->inputname . '[leaf]', PARAM_RAW);
 
         // Hidden element stores the JSON payload that Moodle will persist.
         $mform->addElement('hidden', $this->inputname, '');
@@ -67,29 +74,19 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         $mform->setType($this->inputname, PARAM_RAW);
 
         // Make them required if field is required (only level0 strictly required).
-        if (!empty($this->field->required) && isset($this->levelkeys[0])) {
-            $mform->addRule($this->inputname.'['.$this->levelkeys[0].']', get_string('required'), 'required', null, 'client');
-        }
-
-        // Pass JSON config to AMD to populate + wire cascading.
-        $levelsconfig = [];
-        foreach ($this->levelkeys as $index => $key) {
-            $label = $this->levellabels[$index] ?? get_string('levellabeldefault', 'profilefield_hierarchicalmenu', $index + 1);
-            $levelsconfig[] = [
-                'key' => $key,
-                'placeholder' => get_string('chooselevel', 'profilefield_hierarchicalmenu', $label)
-            ];
+        if (!empty($this->field->required)) {
+            $mform->addRule($this->inputname . '[leaf]', get_string('required'), 'required', null, 'client');
         }
 
         $PAGE->requires->js_call_amd(
             'profilefield_hierarchicalmenu/selector',
-            'init',
+            'initLeaf',
             [[
-                'root'      => $this->tree['root'],
-                'fieldname' => $this->inputname,
-                'current'   => $this->current,
                 'hidden'    => $this->inputname,
-                'levels'    => $levelsconfig
+                'leafkey'   => $leafkey,
+                'leafname'  => $this->inputname . '[leaf]',
+                'leafmap'   => $leafmap,
+                'levelkeys' => $this->levelkeys
             ]]
         );
     }
@@ -100,11 +97,75 @@ class profile_field_hierarchicalmenu extends profile_field_base {
     public function edit_field_set_default($mform) {
         $default = $this->normalise_selection($this->field->defaultdata ?: $this->current);
 
-        foreach ($this->levelkeys as $key) {
-            $mform->setDefault($this->inputname . '[' . $key . ']', $default[$key] ?? '');
-        }
+        $leafindex = max(count($this->levelkeys) - 1, 0);
+        $leafkey = $this->levelkeys[$leafindex] ?? 'level0';
+        $mform->setDefault($this->inputname . '[leaf]', $default[$leafkey] ?? '');
 
         $mform->setDefault($this->inputname, $this->encode_selection($default));
+    }
+
+    /**
+     * Build the selectable leaf options with their corresponding hierarchy paths.
+     *
+     * @return array[] Two-element array: [options, map]
+     */
+    protected function build_leaf_options() {
+        $options = [];
+        $map = [];
+        $keys = $this->levelkeys;
+        $context = \context_system::instance();
+
+        $walker = function(array $nodes, array $path) use (&$walker, &$options, &$map, $keys, $context) {
+            foreach ($nodes as $node) {
+                if (!isset($node['id'])) {
+                    if (!empty($node['childs']) && is_array($node['childs'])) {
+                        $walker($node['childs'], $path);
+                    }
+                    continue;
+                }
+
+                $currentpath = array_merge($path, [$node]);
+                $depth = count($currentpath) - 1;
+                $haschildren = !empty($node['childs']) && is_array($node['childs']);
+                $atmaxdepth = $depth >= count($keys) - 1;
+
+                if (!$haschildren || $atmaxdepth) {
+                    $optionid = (string)$node['id'];
+
+                    $selection = array_fill_keys($keys, '');
+                    foreach ($currentpath as $index => $part) {
+                        if (!isset($keys[$index]) || !isset($part['id'])) {
+                            continue;
+                        }
+                        $selection[$keys[$index]] = (string)$part['id'];
+                    }
+
+                    $labels = [];
+                    foreach ($currentpath as $part) {
+                        $labels[] = format_string($part['name'] ?? '', true, ['context' => $context]);
+                    }
+
+                    $label = implode(' / ', array_filter($labels, static function($value) {
+                        return $value !== '';
+                    }));
+
+                    if ($label === '') {
+                        $label = $optionid;
+                    }
+
+                    $options[$optionid] = $label;
+                    $map[$optionid] = $selection;
+                }
+
+                if ($haschildren && !$atmaxdepth) {
+                    $walker($node['childs'], $currentpath);
+                }
+            }
+        };
+
+        $walker($this->tree['root']['items'] ?? [], []);
+
+        return [$options, $map];
     }
 
     /**
