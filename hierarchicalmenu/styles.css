@@ -224,3 +224,9 @@
 	border:none !important;
 	background-color: transparent !important;
 }
+
+#category-tree-container #add-root-category{
+	border-radius:4px !important;
+	background-color:#7049BC !important;
+	border:none !important;
+}
