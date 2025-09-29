@@ -53,19 +53,23 @@
 
 .category-item.level-0 {
     border-left: 4px solid #7049BC;
+	padding-right:1rem;
 }
 
 .category-item.level-1 {
+	padding-right:1rem;
     border-left: 4px solid #7049BCB2;
     margin-left: 1.5rem;
 }
 
 .category-item.level-2 {
+	padding-right:1rem;
     border-left: 4px solid #7049BC66;
     margin-left: 3rem;
 }
 
 .category-item.level-3 {
+	padding-right:1rem;
     border-left: 4px solid #7049BC33;
     margin-left: 3rem;
 }
@@ -229,4 +233,10 @@
 	border-radius:4px !important;
 	background-color:#7049BC !important;
 	border:none !important;
+}
+
+
+
+.fitem:has(textarea[name="param1"]) {
+  display:none !important;
 }

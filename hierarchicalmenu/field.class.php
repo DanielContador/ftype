@@ -142,7 +142,11 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
                     $labels = [];
                     foreach ($currentpath as $part) {
-                        $labels[] = format_string($part['name'] ?? '', true, ['context' => $context]);
+                        $name = $part['name'] ?? '';
+                        if (mb_strlen($name) > 7) {
+                            $name = mb_substr($name, 0, 7) . '...';
+                        }
+                        $labels[] = format_string($name, true, ['context' => $context]);
                     }
 
                     $label = implode(' / ', array_filter($labels, static function($value) {
@@ -266,24 +270,30 @@ class profile_field_hierarchicalmenu extends profile_field_base {
      */
     public function display_data() {
         $selection = $this->normalise_selection($this->data);
-        $names = [];
+        $parts = [];
 
-        foreach ($this->levelkeys as $level) {
+        foreach ($this->levelkeys as $index => $level) {
             $id = $selection[$level] ?? '';
             if ($id !== '' && isset($this->nodesbyid[$id]['name'])) {
-                $names[] = format_string(
-                    $this->nodesbyid[$id]['name'],
+                $label = $this->levellabels[$index] ?? '';
+                $nodename = $this->nodesbyid[$id]['name'];
+                if (mb_strlen($nodename) > 7) {
+                    $nodename = mb_substr($nodename, 0, 7) . '...';
+                }
+                $name = format_string(
+                    $nodename,
                     true,
                     ['context' => \context_system::instance()]
                 );
+                $parts[] = $label . ':' . $name;
             }
         }
 
-        if (empty($names)) {
+        if (empty($parts)) {
             return '';
         }
 
-        return implode(' / ', $names);
+        return implode(' / ', $parts);
     }
 
     /**
