@@ -177,6 +177,7 @@ define(['jquery'], function($) {
         var tooltip = null;
         var activeValue = null;
         var lastCoords = null;
+        var timer = null;
 
         function ensureTooltip() {
             if (tooltip && tooltip.length && tooltip.closest('body').length) {
@@ -192,6 +193,10 @@ define(['jquery'], function($) {
         }
 
         function hideTooltip() {
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
             activeValue = null;
             lastCoords = null;
             if (tooltip && tooltip.length) {
@@ -266,7 +271,14 @@ define(['jquery'], function($) {
                 return;
             }
 
-            showTooltip($option, coordinates);
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+
+            timer = setTimeout(function() {
+                showTooltip($option, coordinates);
+            }, 300); // small delay for better UX
         }
 
         $select.on('mousemove.hierarchicalmenuTooltip', function(event){

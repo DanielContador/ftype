@@ -242,6 +242,8 @@
 }
 
 .hierarchicalmenu-tooltip {
+
+    margin-left: 11rem;
     position: absolute;
     z-index: 10000;
     background-color: rgba(33, 37, 41, 0.95);
