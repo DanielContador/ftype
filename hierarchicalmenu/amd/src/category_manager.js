@@ -39,7 +39,7 @@ function($, Str, ModalFactory, ModalEvents) {
 
             $('#add-root-category').off('click').on('click', function(e) {
                 e.preventDefault();
-                self.showAddCategoryModal(null, 0, null);
+                self.showAddCategoryModal(null);
             });
 
             $('#category-search-input').off('input').on('input', function() {
@@ -52,8 +52,7 @@ function($, Str, ModalFactory, ModalEvents) {
                 .on('click', '.add-subcategory', function(e) {
                     e.preventDefault();
                     var path = $(this).data('path');      // path like "0-2"
-                    var level = parseInt($(this).data('level'));
-                    self.showAddCategoryModal(path, level + 1, null);
+                    self.showAddCategoryModal(path);
                 })
                 .on('click', '.edit-category', function(e) {
                     e.preventDefault();
@@ -118,17 +117,18 @@ function($, Str, ModalFactory, ModalEvents) {
             var self = this, html = '';
             items.forEach(function(item, index) {
                 var path = basePath === '' ? String(index) : basePath + '-' + index;
+                var depth = self.getDepthFromPath(path);
                 var hasChildren = Array.isArray(item.childs) && item.childs.length > 0;
-                var canAddChildren = level < (self.maxLevels - 1);
+                var canAddChildren = depth < (self.maxLevels - 1);
 
-                html += '<li class="category-item level-' + level + '" data-path="' + path + '">';
+                html += '<li class="category-item level-' + depth + '" data-path="' + path + '">';
                 html += '  <div class="category-content">';
                 html += '    <span class="category-name">' + self.escapeHtml(item.name) + '</span>';
                 html += '    <div class="category-actions">';
 
                 if (canAddChildren) {
-				html += '      <button type="button" class="add-subcategory" ' +
-						'data-path="' + path + '" data-level="' + level + '" title="Add Subcategory">' +
+                                html += '      <button type="button" class="add-subcategory" ' +
+                                                'data-path="' + path + '" title="Add Subcategory">' +
 						'<img src="' + M.util.image_url('pluscat', 'theme_dl') + '" alt="Add Subcategory" class="icon">' +
 						'</button>';
 
@@ -236,15 +236,16 @@ function($, Str, ModalFactory, ModalEvents) {
 
         /* ----------------- modals ----------------- */
 
-        showAddCategoryModal: function(parentPath, level) {
+        showAddCategoryModal: function(parentPath) {
             var self = this;
-            if (level >= this.maxLevels) {
+            var newDepth = self.getChildDepth(parentPath);
+            if (newDepth >= this.maxLevels) {
                 Str.get_string('maxlevelreached', 'profilefield_hierarchicalmenu', this.maxLevels).then(function(message) {
                     window.alert(message);
                 });
                 return;
             }
-            var title = level === 0 ? 'Add Root Category' : 'Add Subcategory';
+            var title = newDepth === 0 ? 'Add Root Category' : 'Add Subcategory';
             ModalFactory.create({
                 type: ModalFactory.types.SAVE_CANCEL,
                 title: title,
@@ -397,6 +398,23 @@ function($, Str, ModalFactory, ModalEvents) {
             var div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        },
+
+        getDepthFromPath: function(path) {
+            if (path === null || typeof path === 'undefined') {
+                return -1;
+            }
+
+            var normalised = String(path).trim();
+            if (normalised === '') {
+                return -1;
+            }
+
+            return normalised.split('-').length - 1;
+        },
+
+        getChildDepth: function(parentPath) {
+            return this.getDepthFromPath(parentPath) + 1;
         }
     };
 
