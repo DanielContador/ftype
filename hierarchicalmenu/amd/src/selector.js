@@ -146,6 +146,160 @@ define(['jquery'], function($) {
         return blank;
     }
 
+    function annotateOptionsWithLabels($select, labels) {
+        if (!$select.length || !labels) {
+            return;
+        }
+
+        $select.find('option').each(function(){
+            var $option = $(this);
+            var value = $option.attr('value');
+            if (!Object.prototype.hasOwnProperty.call(labels, value)) {
+                $option.removeAttr('data-full-label');
+                return;
+            }
+
+            var full = labels[value];
+            if (typeof full !== 'string' || full.trim() === '') {
+                $option.removeAttr('data-full-label');
+                return;
+            }
+
+            $option.attr('data-full-label', full);
+        });
+    }
+
+    function attachTooltipBehaviour($select) {
+        if (!$select.length) {
+            return;
+        }
+
+        var tooltip = null;
+        var activeValue = null;
+        var lastCoords = null;
+
+        function ensureTooltip() {
+            if (tooltip && tooltip.length && tooltip.closest('body').length) {
+                return tooltip;
+            }
+            tooltip = $('<div>', {
+                'class': 'hierarchicalmenu-tooltip',
+                'role': 'tooltip',
+                'aria-hidden': 'true'
+            });
+            $('body').append(tooltip);
+            return tooltip;
+        }
+
+        function hideTooltip() {
+            activeValue = null;
+            lastCoords = null;
+            if (tooltip && tooltip.length) {
+                tooltip.removeClass('visible').attr('aria-hidden', 'true');
+            }
+        }
+
+        function defaultCoordinates() {
+            var rect = $select[0].getBoundingClientRect();
+            return {
+                pageX: rect.left + window.pageXOffset + rect.width / 2,
+                pageY: rect.top + window.pageYOffset + rect.height
+            };
+        }
+
+        function resolveCoordinates(coordinates) {
+            if (coordinates && typeof coordinates.pageX === 'number' && typeof coordinates.pageY === 'number') {
+                return coordinates;
+            }
+            if (lastCoords && typeof lastCoords.pageX === 'number' && typeof lastCoords.pageY === 'number') {
+                return lastCoords;
+            }
+            return defaultCoordinates();
+        }
+
+        function showTooltip($option, coordinates) {
+            var fullText = $option.attr('data-full-label');
+            var displayText = $option.text();
+
+            if (!fullText || !displayText || fullText === displayText.trim()) {
+                hideTooltip();
+                return;
+            }
+
+            var value = $option.attr('value');
+            activeValue = value;
+            lastCoords = resolveCoordinates(coordinates);
+
+            var tip = ensureTooltip();
+            tip.text(fullText)
+                .css({
+                    left: lastCoords.pageX + 12,
+                    top: lastCoords.pageY + 12
+                })
+                .addClass('visible')
+                .attr('aria-hidden', 'false');
+        }
+
+        function optionFromEvent(event) {
+            if (event && event.target && event.target.tagName === 'OPTION') {
+                return event.target;
+            }
+            var selected = $select.find('option:selected');
+            return selected.length ? selected[0] : null;
+        }
+
+        function maybeShowTooltip(optionEl, coordinates) {
+            if (!optionEl) {
+                hideTooltip();
+                return;
+            }
+
+            var $option = $(optionEl);
+            var value = $option.attr('value');
+
+            if (activeValue === value && tooltip && tooltip.hasClass('visible')) {
+                lastCoords = resolveCoordinates(coordinates);
+                tooltip.css({
+                    left: lastCoords.pageX + 12,
+                    top: lastCoords.pageY + 12
+                });
+                return;
+            }
+
+            showTooltip($option, coordinates);
+        }
+
+        $select.on('mousemove.hierarchicalmenuTooltip', function(event){
+            lastCoords = { pageX: event.pageX, pageY: event.pageY };
+            maybeShowTooltip(optionFromEvent(event), lastCoords);
+        });
+
+        $select.on('mouseenter.hierarchicalmenuTooltip focus.hierarchicalmenuTooltip', function(event){
+            lastCoords = resolveCoordinates({ pageX: event.pageX, pageY: event.pageY });
+            maybeShowTooltip(optionFromEvent(event), lastCoords);
+        });
+
+        $select.on('change.hierarchicalmenuTooltip input.hierarchicalmenuTooltip', function(event){
+            maybeShowTooltip(optionFromEvent(event), resolveCoordinates({ pageX: event.pageX, pageY: event.pageY }));
+        });
+
+        $select.on('mouseleave.hierarchicalmenuTooltip blur.hierarchicalmenuTooltip', function(){
+            hideTooltip();
+        });
+
+        $(document).on('scroll.hierarchicalmenuTooltip', hideTooltip);
+
+        $select.data('hierarchicalmenuTooltipCleanup', function(){
+            hideTooltip();
+            if (tooltip && tooltip.length) {
+                tooltip.remove();
+            }
+            $(document).off('scroll.hierarchicalmenuTooltip', hideTooltip);
+            $select.off('.hierarchicalmenuTooltip');
+            $select.removeData('hierarchicalmenuTooltipCleanup');
+        });
+    }
+
     return {
         /**
          * @param {Object} cfg
@@ -225,6 +379,11 @@ define(['jquery'], function($) {
                 return;
             }
 
+            if (cfg.leaflabels && typeof cfg.leaflabels === 'object') {
+                annotateOptionsWithLabels($select, cfg.leaflabels);
+                attachTooltipBehaviour($select);
+            }
+
             var fallback = readHiddenSelection($hidden, keys);
             var initialLeaf = fallback[leafkey] || $select.val() || '';
 
@@ -244,6 +403,13 @@ define(['jquery'], function($) {
 
             $select.on('change', function(){
                 syncHidden($(this).val() || '');
+            });
+
+            $select.on('remove', function(){
+                var cleanup = $select.data('hierarchicalmenuTooltipCleanup');
+                if (typeof cleanup === 'function') {
+                    cleanup();
+                }
             });
         }
     };
