@@ -56,7 +56,7 @@ class profile_field_hierarchicalmenu extends profile_field_base {
         $formattedfieldname = format_string($this->field->name, true, ['context' => $context]);
         $formattedlabel = format_string($leaflabel, true, ['context' => $context]);
 
-        [$leafoptions, $leafmap] = $this->build_leaf_options();
+        [$leafoptions, $leafmap, $leaflabels] = $this->build_leaf_options();
         $placeholder = get_string('chooselevel', 'profilefield_hierarchicalmenu', $leaflabel);
         $selectoptions = ['' => $placeholder] + $leafoptions;
 
@@ -86,7 +86,8 @@ class profile_field_hierarchicalmenu extends profile_field_base {
                 'leafkey'   => $leafkey,
                 'leafname'  => $this->inputname . '[leaf]',
                 'leafmap'   => $leafmap,
-                'levelkeys' => $this->levelkeys
+                'levelkeys' => $this->levelkeys,
+                'leaflabels'=> $leaflabels,
             ]]
         );
     }
@@ -112,10 +113,11 @@ class profile_field_hierarchicalmenu extends profile_field_base {
     protected function build_leaf_options() {
         $options = [];
         $map = [];
+        $fulllabels = [];
         $keys = $this->levelkeys;
         $context = \context_system::instance();
 
-        $walker = function(array $nodes, array $path) use (&$walker, &$options, &$map, $keys, $context) {
+        $walker = function(array $nodes, array $path) use (&$walker, &$options, &$map, &$fulllabels, $keys, $context) {
             foreach ($nodes as $node) {
                 if (!isset($node['id'])) {
                     if (!empty($node['childs']) && is_array($node['childs'])) {
@@ -141,12 +143,16 @@ class profile_field_hierarchicalmenu extends profile_field_base {
                     }
 
                     $labels = [];
+                    $fulllabelparts = [];
                     foreach ($currentpath as $part) {
                         $name = $part['name'] ?? '';
+                        $truncated = $name;
                         if (mb_strlen($name) > 7) {
-                            $name = mb_substr($name, 0, 7) . '...';
+                            $truncated = mb_substr($name, 0, 7) . '...';
                         }
-                        $labels[] = format_string($name, true, ['context' => $context]);
+                        $labels[] = format_string($truncated, true, ['context' => $context]);
+                        $formattedfull = format_string($name, true, ['context' => $context]);
+                        $fulllabelparts[] = html_entity_decode($formattedfull, ENT_QUOTES | ENT_HTML5, 'UTF-8');
                     }
 
                     $label = implode(' / ', array_filter($labels, static function($value) {
@@ -159,6 +165,9 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
                     $options[$optionid] = $label;
                     $map[$optionid] = $selection;
+                    $fulllabels[$optionid] = implode(' / ', array_filter($fulllabelparts, static function($value) {
+                        return $value !== '';
+                    }));
                 }
 
                 if ($haschildren && !$atmaxdepth) {
@@ -169,7 +178,7 @@ class profile_field_hierarchicalmenu extends profile_field_base {
 
         $walker($this->tree['root']['items'] ?? [], []);
 
-        return [$options, $map];
+        return [$options, $map, $fulllabels];
     }
 
     /**

@@ -240,3 +240,25 @@
 .fitem:has(textarea[name="param1"]) {
   display:none !important;
 }
+
+.hierarchicalmenu-tooltip {
+    position: absolute;
+    z-index: 10000;
+    background-color: rgba(33, 37, 41, 0.95);
+    color: #ffffff;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+    max-width: 320px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease-in-out;
+    word-break: break-word;
+}
+
+.hierarchicalmenu-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+}
