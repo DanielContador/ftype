@@ -146,6 +146,148 @@ define(['jquery'], function($) {
         return blank;
     }
 
+    function annotateOptionsWithLabels($select, labels) {
+        if (!$select.length || !labels) {
+            return;
+        }
+
+        $select.find('option').each(function(){
+            var $option = $(this);
+            var value = $option.attr('value');
+            if (!Object.prototype.hasOwnProperty.call(labels, value)) {
+                $option.removeAttr('data-full-label');
+                return;
+            }
+
+            var full = labels[value];
+            if (typeof full !== 'string' || full.trim() === '') {
+                $option.removeAttr('data-full-label');
+                return;
+            }
+
+            $option.attr('data-full-label', full);
+        });
+    }
+
+    function attachTooltipBehaviour($select) {
+        if (!$select.length) {
+            return;
+        }
+
+        var tooltip = null;
+        var timer = null;
+        var activeValue = null;
+
+        function ensureTooltip() {
+            if (tooltip && tooltip.length && tooltip.closest('body').length) {
+                return tooltip;
+            }
+            tooltip = $('<div>', {
+                'class': 'hierarchicalmenu-tooltip',
+                'role': 'tooltip',
+                'aria-hidden': 'true'
+            });
+            $('body').append(tooltip);
+            return tooltip;
+        }
+
+        function hideTooltip() {
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            activeValue = null;
+            if (tooltip && tooltip.length) {
+                tooltip.removeClass('visible').attr('aria-hidden', 'true');
+            }
+        }
+
+        function scheduleTooltip(optionEl, coordinates) {
+            if (!optionEl) {
+                hideTooltip();
+                return;
+            }
+
+            var $option = $(optionEl);
+            var fullText = $option.attr('data-full-label');
+            var displayText = $option.text();
+
+            if (!fullText || !displayText || fullText === displayText.trim()) {
+                hideTooltip();
+                return;
+            }
+
+            var value = $option.attr('value');
+            if (activeValue === value && tooltip && tooltip.hasClass('visible')) {
+                if (coordinates) {
+                    tooltip.css({
+                        left: coordinates.pageX + 12,
+                        top: coordinates.pageY + 12
+                    });
+                }
+                return;
+            }
+
+            activeValue = value;
+
+            if (timer) {
+                clearTimeout(timer);
+            }
+
+            timer = setTimeout(function(){
+                var coords = coordinates;
+                if (!coords || (typeof coords.pageX !== 'number' || typeof coords.pageY !== 'number')) {
+                    var rect = $select[0].getBoundingClientRect();
+                    coords = {
+                        pageX: rect.left + window.pageXOffset + rect.width / 2,
+                        pageY: rect.top + window.pageYOffset + rect.height
+                    };
+                }
+
+                var tip = ensureTooltip();
+                tip.text(fullText)
+                    .css({
+                        left: coords.pageX + 12,
+                        top: coords.pageY + 12
+                    })
+                    .addClass('visible')
+                    .attr('aria-hidden', 'false');
+            }, 1000);
+        }
+
+        $select.on('mousemove.hierarchicalmenuTooltip', function(event){
+            if (event.target && event.target.tagName === 'OPTION') {
+                scheduleTooltip(event.target, { pageX: event.pageX, pageY: event.pageY });
+            }
+        });
+
+        $select.on('mouseenter.hierarchicalmenuTooltip focus.hierarchicalmenuTooltip', function(event){
+            var option = event.target && event.target.tagName === 'OPTION'
+                ? event.target
+                : $select[0].options[$select[0].selectedIndex] || null;
+            scheduleTooltip(option, {
+                pageX: event.pageX,
+                pageY: event.pageY
+            });
+        });
+
+        $select.on('mouseleave.hierarchicalmenuTooltip blur.hierarchicalmenuTooltip change.hierarchicalmenuTooltip', function(){
+            hideTooltip();
+        });
+
+        $(document).on('scroll.hierarchicalmenuTooltip', hideTooltip);
+
+        $select.data('hierarchicalmenuTooltipCleanup', function(){
+            hideTooltip();
+            if (tooltip && tooltip.length) {
+                tooltip.remove();
+            }
+            $(document).off('scroll.hierarchicalmenuTooltip', hideTooltip);
+            $select.off('.hierarchicalmenuTooltip');
+            $select.removeData('hierarchicalmenuTooltipCleanup');
+        });
+    }
+
     return {
         /**
          * @param {Object} cfg
@@ -225,6 +367,11 @@ define(['jquery'], function($) {
                 return;
             }
 
+            if (cfg.leaflabels && typeof cfg.leaflabels === 'object') {
+                annotateOptionsWithLabels($select, cfg.leaflabels);
+                attachTooltipBehaviour($select);
+            }
+
             var fallback = readHiddenSelection($hidden, keys);
             var initialLeaf = fallback[leafkey] || $select.val() || '';
 
@@ -244,6 +391,13 @@ define(['jquery'], function($) {
 
             $select.on('change', function(){
                 syncHidden($(this).val() || '');
+            });
+
+            $select.on('remove', function(){
+                var cleanup = $select.data('hierarchicalmenuTooltipCleanup');
+                if (typeof cleanup === 'function') {
+                    cleanup();
+                }
             });
         }
     };
