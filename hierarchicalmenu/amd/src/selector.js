@@ -175,8 +175,9 @@ define(['jquery'], function($) {
         }
 
         var tooltip = null;
-        var timer = null;
         var activeValue = null;
+        var lastCoords = null;
+        var timer = null;
 
         function ensureTooltip() {
             if (tooltip && tooltip.length && tooltip.closest('body').length) {
@@ -197,18 +198,31 @@ define(['jquery'], function($) {
                 timer = null;
             }
             activeValue = null;
+            lastCoords = null;
             if (tooltip && tooltip.length) {
                 tooltip.removeClass('visible').attr('aria-hidden', 'true');
             }
         }
 
-        function scheduleTooltip(optionEl, coordinates) {
-            if (!optionEl) {
-                hideTooltip();
-                return;
-            }
+        function defaultCoordinates() {
+            var rect = $select[0].getBoundingClientRect();
+            return {
+                pageX: rect.left + window.pageXOffset + rect.width / 2,
+                pageY: rect.top + window.pageYOffset + rect.height
+            };
+        }
 
-            var $option = $(optionEl);
+        function resolveCoordinates(coordinates) {
+            if (coordinates && typeof coordinates.pageX === 'number' && typeof coordinates.pageY === 'number') {
+                return coordinates;
+            }
+            if (lastCoords && typeof lastCoords.pageX === 'number' && typeof lastCoords.pageY === 'number') {
+                return lastCoords;
+            }
+            return defaultCoordinates();
+        }
+
+        function showTooltip($option, coordinates) {
             var fullText = $option.attr('data-full-label');
             var displayText = $option.text();
 
@@ -218,60 +232,70 @@ define(['jquery'], function($) {
             }
 
             var value = $option.attr('value');
-            if (activeValue === value && tooltip && tooltip.hasClass('visible')) {
-                if (coordinates) {
-                    tooltip.css({
-                        left: coordinates.pageX + 12,
-                        top: coordinates.pageY + 12
-                    });
-                }
+            activeValue = value;
+            lastCoords = resolveCoordinates(coordinates);
+
+            var tip = ensureTooltip();
+            tip.text(fullText)
+                .css({
+                    left: lastCoords.pageX + 12,
+                    top: lastCoords.pageY + 12
+                })
+                .addClass('visible')
+                .attr('aria-hidden', 'false');
+        }
+
+        function optionFromEvent(event) {
+            if (event && event.target && event.target.tagName === 'OPTION') {
+                return event.target;
+            }
+            var selected = $select.find('option:selected');
+            return selected.length ? selected[0] : null;
+        }
+
+        function maybeShowTooltip(optionEl, coordinates) {
+            if (!optionEl) {
+                hideTooltip();
                 return;
             }
 
-            activeValue = value;
+            var $option = $(optionEl);
+            var value = $option.attr('value');
+
+            if (activeValue === value && tooltip && tooltip.hasClass('visible')) {
+                lastCoords = resolveCoordinates(coordinates);
+                tooltip.css({
+                    left: lastCoords.pageX + 12,
+                    top: lastCoords.pageY + 12
+                });
+                return;
+            }
 
             if (timer) {
                 clearTimeout(timer);
+                timer = null;
             }
 
-            timer = setTimeout(function(){
-                var coords = coordinates;
-                if (!coords || (typeof coords.pageX !== 'number' || typeof coords.pageY !== 'number')) {
-                    var rect = $select[0].getBoundingClientRect();
-                    coords = {
-                        pageX: rect.left + window.pageXOffset + rect.width / 2,
-                        pageY: rect.top + window.pageYOffset + rect.height
-                    };
-                }
-
-                var tip = ensureTooltip();
-                tip.text(fullText)
-                    .css({
-                        left: coords.pageX + 12,
-                        top: coords.pageY + 12
-                    })
-                    .addClass('visible')
-                    .attr('aria-hidden', 'false');
-            }, 1000);
+            timer = setTimeout(function() {
+                showTooltip($option, coordinates);
+            }, 300); // small delay for better UX
         }
 
         $select.on('mousemove.hierarchicalmenuTooltip', function(event){
-            if (event.target && event.target.tagName === 'OPTION') {
-                scheduleTooltip(event.target, { pageX: event.pageX, pageY: event.pageY });
-            }
+            lastCoords = { pageX: event.pageX, pageY: event.pageY };
+            maybeShowTooltip(optionFromEvent(event), lastCoords);
         });
 
         $select.on('mouseenter.hierarchicalmenuTooltip focus.hierarchicalmenuTooltip', function(event){
-            var option = event.target && event.target.tagName === 'OPTION'
-                ? event.target
-                : $select[0].options[$select[0].selectedIndex] || null;
-            scheduleTooltip(option, {
-                pageX: event.pageX,
-                pageY: event.pageY
-            });
+            lastCoords = resolveCoordinates({ pageX: event.pageX, pageY: event.pageY });
+            maybeShowTooltip(optionFromEvent(event), lastCoords);
         });
 
-        $select.on('mouseleave.hierarchicalmenuTooltip blur.hierarchicalmenuTooltip change.hierarchicalmenuTooltip', function(){
+        $select.on('change.hierarchicalmenuTooltip input.hierarchicalmenuTooltip', function(event){
+            maybeShowTooltip(optionFromEvent(event), resolveCoordinates({ pageX: event.pageX, pageY: event.pageY }));
+        });
+
+        $select.on('mouseleave.hierarchicalmenuTooltip blur.hierarchicalmenuTooltip', function(){
             hideTooltip();
         });
 
